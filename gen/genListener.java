@@ -106,4 +106,14 @@ public interface genListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitTuple(genParser.TupleContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link genParser#expressionTuple}.
+	 * @param ctx the parse tree
+	 */
+	void enterExpressionTuple(genParser.ExpressionTupleContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link genParser#expressionTuple}.
+	 * @param ctx the parse tree
+	 */
+	void exitExpressionTuple(genParser.ExpressionTupleContext ctx);
 }

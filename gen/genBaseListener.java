@@ -130,6 +130,18 @@ public class genBaseListener implements genListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitTuple(genParser.TupleContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterExpressionTuple(genParser.ExpressionTupleContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitExpressionTuple(genParser.ExpressionTupleContext ctx) { }
 
 	/**
 	 * {@inheritDoc}

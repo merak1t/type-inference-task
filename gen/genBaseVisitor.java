@@ -80,4 +80,11 @@ public class genBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements ge
 	 * {@link #visitChildren} on {@code ctx}.</p>
 	 */
 	@Override public T visitTuple(genParser.TupleContext ctx) { return visitChildren(ctx); }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation returns the result of calling
+	 * {@link #visitChildren} on {@code ctx}.</p>
+	 */
+	@Override public T visitExpressionTuple(genParser.ExpressionTupleContext ctx) { return visitChildren(ctx); }
 }

@@ -69,4 +69,10 @@ public interface genVisitor<T> extends ParseTreeVisitor<T> {
 	 * @return the visitor result
 	 */
 	T visitTuple(genParser.TupleContext ctx);
+	/**
+	 * Visit a parse tree produced by {@link genParser#expressionTuple}.
+	 * @param ctx the parse tree
+	 * @return the visitor result
+	 */
+	T visitExpressionTuple(genParser.ExpressionTupleContext ctx);
 }

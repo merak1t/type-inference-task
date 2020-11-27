@@ -18,7 +18,9 @@ args : ((expression COMMA)* expression)?;
 
 expression : NAME | INTEGER | tuple;
 
-tuple : LPAR ((expression COMMA)* expression)? RPAR;
+tuple : LPAR ((expressionTuple COMMA)* expressionTuple)? RPAR;
+
+expressionTuple : NAME | INTEGER ;
 
 FUNCTION : 'fun';
 
