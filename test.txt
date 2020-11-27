@@ -1,0 +1,20 @@
+fun f6(x..) {
+    return (x, x)
+}
+// f6: int[n] -> int[2*n]
+
+fun hd2(x, y, z..) {
+    return (x, y)
+}
+// hd2: int[2 + n] -> int[2]
+
+fun typingSuccess(x, y, z..) {
+    hd2 (z)
+    return z
+}
+// typingSuccess: int[4 + n] -> int[2 + n]
+
+fun typingFailure(x, y, z..) {
+    return hd2 (x)
+}
+// typingFailure cannot be typed: (x is of type int, but hd2 expects int[2+n])
