@@ -14,14 +14,6 @@ public class Visitor extends AbstractParseTreeVisitor<String> implements genVisi
     private Variable currentExpressionTuple;
 
 
-    private void addMainFunc() {
-        var newFunc = new Function(currentMainFunc);
-        for (var curVar : currentMainVars) {
-            newFunc.addInputType(curVar.type);
-        }
-        functions.put(currentMainFunc, newFunc);
-    }
-
     @Override
     public String visitProgram(genParser.ProgramContext ctx) {
         var res = new StringBuilder();
@@ -45,13 +37,192 @@ public class Visitor extends AbstractParseTreeVisitor<String> implements genVisi
         addMainFunc();
         res.append("\n");
         for (var context : ctx.func_command()) {
-            visitFunc_command(context);
+            res.append(visitFunc_command(context)).append('\n');
         }
         res.append(visitReturnValue(ctx.returnValue()));
         res.append("\n");
         return res.toString();
     }
 
+
+    @Override
+    public String visitFunc_command(genParser.Func_commandContext ctx) {
+        currentOperFunc = ctx.NAME().getText();
+        var res = new StringBuilder(currentOperFunc);
+        if (!functions.containsKey(currentOperFunc)) {
+            return "Fail: unexpected function name " + currentOperFunc;
+        }
+        if (currentOperFunc.equals(currentMainFunc)) {
+            return "Fail: unexpected recursion found";
+        }
+        var curFunc = functions.get(currentOperFunc);
+        res.append('(').append(visitArgs(ctx.args())).append(") : ").append(curFunc.getType("in")).append(" -> ").append(curFunc.getType("out"));
+        var inference = updateTypesByCurrentFunction();
+        if (inference.equals("accept")) {
+            return res.toString();
+        } else {
+            return inference;
+        }
+    }
+
+    @Override
+    public String visitHeader(genParser.HeaderContext ctx) {
+        currentMainFunc = ctx.NAME().getText();
+        var res = new StringBuilder(currentMainFunc);
+        res.append("(");
+        res.append(visitDeclaration(ctx.declaration()));
+        res.append(")\n");
+        return res.toString();
+    }
+
+    @Override
+    public String visitDeclaration(genParser.DeclarationContext ctx) {
+        var res = new StringBuilder();
+        currentMainVars = new ArrayList<>();
+        for (var context : ctx.NAME()) {
+            var newVar = new Variable(context.getText(), currentMainFunc, false);
+            currentMainVars.add(newVar);
+            if (res.length() > 0) {
+                res.append(", ");
+            }
+            res.append(newVar.getName()).append(" : ").append(newVar.getType());
+        }
+        if (ctx.tail() != null) {
+            res.append(visitTail(ctx.tail()));
+        }
+        return res.toString();
+    }
+
+    @Override
+    public String visitTail(genParser.TailContext ctx) {
+        var res = new StringBuilder();
+        var context = ctx.NAME();
+        var newVar = new Variable(context.getText(), currentMainFunc, true);
+        if (currentMainVars.size() > 0) {
+            res.append(", ");
+        }
+        currentMainVars.add(newVar);
+        res.append(newVar.getName()).append(" : ").append(newVar.getType());
+        return res.toString();
+    }
+
+
+    // need to update function --Done
+    @Override
+    public String visitReturnValue(genParser.ReturnValueContext ctx) {
+        var res = new StringBuilder();
+        res.append(currentMainFunc).append(": ");
+        var resFunc = functions.get(currentMainFunc);
+        res.append(resFunc.getType("in")).append(" -> ");
+        if (ctx.func_command() != null) {
+            var resCommand = visitFunc_command(ctx.func_command());
+            if (resCommand.startsWith("Fail")) {
+                return resCommand;
+            }
+            var curFunc = functions.get(currentOperFunc);
+            updateOutMainFunc(curFunc.outputType);
+            //resFunc.outputType = curFunc.outputType;
+            //functions.replace(currentMainFunc, resFunc);
+            res.append(resFunc.getType("out"));
+            return res.toString();
+        } else if (ctx.expression() != null) {
+            var resExpr = visitExpression(ctx.expression());
+            updateOutMainFunc(currentExpression.type);
+            res.append(currentExpression.getType());
+            return res.toString();
+        } else {
+            return "fail: empty return";
+        }
+    }
+
+
+    @Override
+    public String visitArgs(genParser.ArgsContext ctx) {
+        var res = new StringBuilder();
+        currentOperVars = new ArrayList<>();
+        for (var context : ctx.expression()) {
+            if (res.length() > 0) {
+                res.append(", ");
+            }
+            res.append(visitExpression(context)).append(" : ").append(currentExpression.getType());
+            currentOperVars.add(currentExpression);
+        }
+        return res.toString();
+    }
+
+    @Override
+    public String visitExpression(genParser.ExpressionContext ctx) {
+        if (ctx.NAME() != null) {
+            var curName = ctx.NAME().getText();
+            Variable foundVar = null;
+            for (var variable : currentMainVars) {
+                if (variable.getName().equals(curName)) {
+                    foundVar = variable;
+                }
+            }
+            if (foundVar == null) {
+                return "Fail: variable " + curName + " not declared";
+            }
+            currentExpression = foundVar;
+            return currentExpression.getName();
+        } else if (ctx.INTEGER() != null) {
+            currentExpression = new Variable(ctx.INTEGER().getText(), "int", false);
+            return currentExpression.getName();
+        } else if (ctx.tuple() != null) {
+            return visitTuple(ctx.tuple());
+        } else {
+            return "fail on parse expression " + ctx.getText();
+        }
+    }
+
+
+    @Override
+    public String visitExpressionTuple(genParser.ExpressionTupleContext ctx) {
+        currentExpressionTuple = new Variable();
+        if (ctx.NAME() != null) {
+            var curName = ctx.NAME().getText();
+            Variable foundVar = null;
+            for (var variable : currentMainVars) {
+                if (variable.getName().equals(curName)) {
+                    foundVar = variable;
+                }
+            }
+            if (foundVar == null) {
+                return "Fail: variable " + curName + " not declared";
+            }
+            currentExpressionTuple = foundVar;
+            return currentExpressionTuple.getName();
+        } else if (ctx.INTEGER() != null) {
+            currentExpressionTuple = new Variable(ctx.INTEGER().getText(), "int", false);
+            return currentExpressionTuple.getName();
+        } else {
+            return "fail on parse expression " + ctx.getText();
+        }
+    }
+
+    @Override
+    public String visitTuple(genParser.TupleContext ctx) {
+        currentExpression = new Tuple();
+        for (var context : ctx.expressionTuple()) {
+            visitExpressionTuple(context);
+            currentExpression.add(currentExpressionTuple);
+        }
+        return "tuple";
+    }
+
+    private void updateOutMainFunc(int[] outputType) {
+        var resFunc = functions.get(currentMainFunc);
+        resFunc.outputType = outputType;
+        functions.replace(currentMainFunc, resFunc);
+    }
+
+    private void addMainFunc() {
+        var newFunc = new Function(currentMainFunc);
+        for (var curVar : currentMainVars) {
+            newFunc.addInputType(curVar.type);
+        }
+        functions.put(currentMainFunc, newFunc);
+    }
 
     private boolean isTail(Variable tail, Variable other) {
         boolean hasTail = tail != null && tail.isN();
@@ -153,157 +324,4 @@ public class Visitor extends AbstractParseTreeVisitor<String> implements genVisi
         }
     }
 
-    @Override
-    public String visitFunc_command(genParser.Func_commandContext ctx) {
-        currentOperFunc = ctx.NAME().getText();
-        if (!functions.containsKey(currentOperFunc)) {
-            return "Fail: unexpected function name " + currentOperFunc;
-        }
-        if (currentOperFunc.equals(currentMainFunc)) {
-            return "Fail: unexpected recursion found";
-        }
-        visitArgs(ctx.args());
-        var res = updateTypesByCurrentFunction();
-        return res;
-    }
-
-    @Override
-    public String visitHeader(genParser.HeaderContext ctx) {
-        currentMainFunc = ctx.NAME().getText();
-        var res = new StringBuilder(currentMainFunc);
-        res.append("(");
-        visitDeclaration(ctx.declaration());
-        res.append(")\n");
-        return res.toString();
-    }
-
-    @Override
-    public String visitDeclaration(genParser.DeclarationContext ctx) {
-        var res = new StringBuilder();
-        currentMainVars = new ArrayList<>();
-        for (var context : ctx.NAME()) {
-            var newVar = new Variable(context.getText(), currentMainFunc, false);
-            currentMainVars.add(newVar);
-            if (res.length() > 0) {
-                res.append(", ");
-            }
-            res.append(newVar.getType() + ' ' + newVar.getType());
-        }
-        if (ctx.tail() != null) {
-            res.append(visitTail(ctx.tail()));
-        }
-        //updateInputTypeFunc();
-        return res.toString();
-    }
-
-    @Override
-    public String visitTail(genParser.TailContext ctx) {
-        var res = new StringBuilder();
-        var context = ctx.NAME();
-        var newVar = new Variable(context.getText(), currentMainFunc, true);
-        if (currentMainVars.size() > 0) {
-            res.append(", ");
-        }
-        currentMainVars.add(newVar);
-        res.append(newVar.getType() + ' ' + newVar.getType());
-        return res.toString();
-    }
-
-    // need to update function --Done
-    @Override
-    public String visitReturnValue(genParser.ReturnValueContext ctx) {
-        var res = new StringBuilder();
-        res.append(currentMainFunc).append(": ");
-        var resFunc = functions.get(currentMainFunc);
-        res.append(resFunc.getType("in")).append(" -> ");
-        if (ctx.func_command() != null) {
-            var resCommand = visitFunc_command(ctx.func_command());
-            if (!resCommand.equals("accepted")){
-                return resCommand;
-            }
-            var curFunc = functions.get(currentOperFunc);
-            resFunc.outputType = curFunc.outputType;
-            functions.replace(currentMainFunc, resFunc);
-            res.append(resFunc.getType("out"));
-            return res.toString();
-        } else if (ctx.expression() != null) {
-            var resExpr = visitExpression(ctx.expression());
-            res.append(currentExpression.getType());
-            return res.toString();
-        } else {
-            return "fail: empty return";
-        }
-    }
-
-
-    @Override
-    public String visitArgs(genParser.ArgsContext ctx) {
-        var res = new StringBuilder();
-        currentOperVars = new ArrayList<>();
-        for (var context : ctx.expression()) {
-            res.append(visitExpression(context)).append(' ');
-            currentOperVars.add(currentExpression);
-        }
-        return res.toString();
-    }
-
-    @Override
-    public String visitExpression(genParser.ExpressionContext ctx) {
-        if (ctx.NAME() != null) {
-            var curName = ctx.NAME().getText();
-            Variable foundVar = null;
-            for (var variable : currentMainVars) {
-                if (variable.getName().equals(curName)) {
-                    foundVar = variable;
-                }
-            }
-            if (foundVar == null) {
-                return "Fail: variable " + curName + " not declared";
-            }
-            currentExpression = foundVar;
-            return currentExpression.getName();
-        } else if (ctx.INTEGER() != null) {
-            currentExpression = new Variable(ctx.INTEGER().getText(), "int", false);
-            return currentExpression.getName();
-        } else if (ctx.tuple() != null) {
-            return visitTuple(ctx.tuple());
-        } else {
-            return "fail on parse expression " + ctx.getText();
-        }
-    }
-
-
-    @Override
-    public String visitExpressionTuple(genParser.ExpressionTupleContext ctx) {
-        currentExpressionTuple = new Variable();
-        if (ctx.NAME() != null) {
-            var curName = ctx.NAME().getText();
-            Variable foundVar = null;
-            for (var variable : currentMainVars) {
-                if (variable.getName().equals(curName)) {
-                    foundVar = variable;
-                }
-            }
-            if (foundVar == null) {
-                return "Fail: variable " + curName + " not declared";
-            }
-            currentExpressionTuple = foundVar;
-            return currentExpressionTuple.getName();
-        } else if (ctx.INTEGER() != null) {
-            currentExpressionTuple = new Variable(ctx.INTEGER().getText(), "int", false);
-            return currentExpressionTuple.getName();
-        } else {
-            return "fail on parse expression " + ctx.getText();
-        }
-    }
-
-    @Override
-    public String visitTuple(genParser.TupleContext ctx) {
-        currentExpression = new Tuple();
-        for (var context : ctx.expressionTuple()) {
-            visitExpressionTuple(context);
-            currentExpression.add(currentExpressionTuple);
-        }
-        return "tuple";
-    }
 }
